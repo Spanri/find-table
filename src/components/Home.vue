@@ -77,17 +77,22 @@
 
 <script>
 /**
- * Берем отсюда
- * variables - значения из exampleVariables (для нашего случая)
- * rules - правила для нашего случая
+ * Берем из файла ниже и применяем в этом файле:
+ * variables - входные и выходные переменные
+ * rules - правила
+ * fuzzyAreas - для фаззификации нечетких значений
  */
-// import config2 from "@/config/config";
-
 import config from "@/config/index";
 
 export default {
   name: "Home",
 
+  /**
+   * config из файла выше
+   * в result записывается объект с результатом
+   * isSuccess показывает результат, когда он подсчитан
+   * isFirst тоже для этого
+   */
   data() {
     return {
       ...config,
@@ -98,73 +103,136 @@ export default {
   },
 
   methods: {
-    /**
-     * Справа от каждого поля ввода есть цифры. Сколько функций принадлежности
-     * во входной переменной, столько и цифр.
-     * Для каждой такой функции принадлежности запускается эта функция, она принимает
-     * диапазон функции принадлежности и значение, которое введено в поле ввода.
-     * Функция считает, насколько введенное в поле ввода значение соответствует диапазону.
-     */
-    fuzzyValue(ranges, inputValue) {
-      try {
-        if (ranges.length == 3) {
-          return this.fuzzyAreas.triangle(ranges, inputValue);
-        } else {
-          return this.fuzzyAreas.trapezoid(ranges, inputValue);
-        }
-      } catch (e) {
-        console.log(e);
-        return null;
-      }
-    },
-
     getResult() {
       try {
-        let res = { result: 0 };
         /**
-         * Для каждого правила посчитать его "результат", а потом
-         * среди всех постепенно выбрать максимальный
+         * Агрегирование
          */
+
+        let accumulation = [[], [], [], [], [], []];
+
         this.rules.forEach(rule => {
-          rule.result = this.checkValue(rule);
-          if (rule.result > res.result) {
-            res = rule;
+          if (rule.output.name == "Это не похоже на стол") {
+            accumulation[0].push(this.checkValue(rule));
+          }
+          if (
+            rule.output.name == "Лучше не садиться, но если очень хочется..."
+          ) {
+            accumulation[1].push(this.checkValue(rule));
+          }
+          if (rule.output.name == "Для аккуратного ребенка") {
+            accumulation[2].push(this.checkValue(rule));
+          }
+          if (rule.output.name == "Для подростка") {
+            accumulation[3].push(this.checkValue(rule));
+          }
+          if (rule.output.name == "Для взрослого") {
+            accumulation[4].push(this.checkValue(rule));
+          }
+          if (rule.output.name == "Для компании друзей") {
+            accumulation[5].push(this.checkValue(rule));
           }
         });
-        this.result = res;
-        this.isFirst = true;
-        this.isSuccess = true;
+
+        console.log();
+
+        /**
+         * Аккумулирование.
+         * Для нашей выходной переменной необходимо определить
+         * результирующую функцию принадлежности. Для этого
+         * нужно объединить все функции принадлежности этой
+         * выходной переменной.
+         */
+
+        /**
+         * Заменяем массив из степеней истинности правил для i-го
+         * значения выходной переменной на максимальную (max-объединение)
+         * степень истинности из этого массива.
+         */
+        accumulation[0] = accumulation[0].reduce((next, prev) =>
+          Math.max(next, prev)
+        );
+        accumulation[1] = accumulation[1].reduce((next, prev) =>
+          Math.max(next, prev)
+        );
+        accumulation[2] = accumulation[2].reduce((next, prev) =>
+          Math.max(next, prev)
+        );
+        accumulation[3] = accumulation[3].reduce((next, prev) =>
+          Math.max(next, prev)
+        );
+        accumulation[4] = accumulation[4].reduce((next, prev) =>
+          Math.max(next, prev)
+        );
+        accumulation[5] = accumulation[5].reduce((next, prev) =>
+          Math.max(next, prev)
+        );
+
+        console.log(accumulation);
+
+        // let res = { result: 0 };
+        // /**
+        //  * Для каждого правила посчитать его "результат", а потом
+        //  * среди всех постепенно выбрать максимальный
+        //  */
+        // this.rules.forEach(rule => {
+        //   rule.result = this.checkValue(rule);
+        //   console.log(rule.result);
+        //   if (rule.result > res.result) {
+        //     res = rule;
+        //   }
+        // });
+        // this.result = res;
+        // this.isFirst = true;
+        // this.isSuccess = true;
       } catch {
         this.isSuccess = false;
       }
     },
 
     /**
-     * Для каждой входной переменной берем её значение,
-     * введенное в поле ввода и пушим в data это значение,
-     * пройденное через fuzzyValue с помощью диапазона для
-     * этой входной переменной, взятой из правила (rule).
-     * В конце в data получаем что-то типа [ 0, 0.29, 0.66, 0 ], а
-     * потом находим среди этого максимум
+     * Агрегирование.
+     * Подается правило с входными переменными.
+     * Для каждой входной переменной берем её значение из поле ввода.
+     * Фаззифицируем его и пушим результат в data.
+     * В конце в data получаем что-то типа [ 0, 0.29, 0.66, 0 ] (если
+     * входных переменных 4), а потом находим среди этого минимум (ибо
+     * через AND). Это степень истинности правила.
      */
     checkValue(rule) {
-      const { variables } = this;
       const data = [];
 
       rule.inputs.forEach((input, index) => {
-        const value = variables.inputs[index].value;
+        const value = this.variables.inputs[index].value;
         data.push(this.fuzzyValue(input.ranges, value));
       });
-      // Максимальное значение из массива data
-      const result = data.reduce((next, prev) => Math.max(next, prev));
+
+      const result = data.reduce((next, prev) => Math.min(next, prev));
       return result;
+    },
+
+    /**
+     * Фаззификация.
+     * Для каждой ФП запускается эта функция, она принимает
+     * диапазон ФП и значение, которое введено в поле ввода для неё.
+     * Функция считает степень истинности, возвращает число.
+     */
+    fuzzyValue(ranges, inputValue) {
+      try {
+        return ranges.length == 3
+          ? this.fuzzyAreas.triangle(ranges, inputValue)
+          : this.fuzzyAreas.trapezoid(ranges, inputValue);
+      } catch (e) {
+        console.log(e);
+        return null;
+      }
     }
   }
 };
 </script>
 
 <style lang="scss" scoped>
-// Стили css (почти, с препроцессором)
+// Ниже стили css
 
 $accent: #0099ff;
 $accent-darker: #075488;
