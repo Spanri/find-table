@@ -114,7 +114,7 @@ const rules = [
     [2, 2, 3, 4, 3],
     [2, 3, 3, 3, 3],
     [2, 3, 4, 3, 3],
-    //
+    // Другие правила
     [3, 0, 2, 0, 3],
     [3, 0, 2, 1, 3],
     [3, 1, 0, 2, 3],
@@ -126,6 +126,7 @@ const rules = [
     [3, 2, 3, 4, 4],
     [3, 3, 3, 3, 4],
     [3, 3, 4, 3, 4],
+    [1, 2, 2, 2, 2],
 ]
 
 /**
@@ -145,7 +146,5 @@ for (let i = 0; i < rules.length; i++) {
         output: variables.outputs[0].fuzzyAreas[rules[i][4]]
     };
 }
-
-console.log("Правила в нормальном виде", rules);
 
 export default rules;

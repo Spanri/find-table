@@ -63,15 +63,38 @@
       <h3>Название правила: {{ result.output.name }}</h3>
       <h3>Результат: {{ result.result }}</h3>
       <h3>Диапазон: {{ result.output.ranges }}</h3>
-      <div v-for="(input, index) in variables.inputs" :key="index">
-        <h3>
-          {{ input.name }}:
-          {{ result.inputs[index] ? result.inputs[index].name : "" }}
-        </h3>
+      <div v-for="(input, index) in variablesResult.inputs" :key="index">
+        <h3>{{ input.name }}: {{ input.res.name }}</h3>
       </div>
     </div>
     <h3 v-else-if="isFirst">Нажмите на кнопку для подсчета.</h3>
     <h3 v-else>Похоже, что-то введено неправильно.</h3>
+    <div class="home__degreeOfTruth">
+      <div v-if="isSuccess">
+        <h3>Правила с результатами:</h3>
+        <p
+          v-for="(rule, index) in rulesResult"
+          :key="index"
+          :style="{ fontWeight: indexResult == index ? 'bold' : 'normal' }"
+        >
+          Правило {{ index }}: {{ rule.inputs[0].name }} ({{
+            rule.inputs[0].result
+          }}) AND {{ rule.inputs[1].name }} ({{ rule.inputs[1].result }}) AND
+          {{ rule.inputs[2].name }} ({{ rule.inputs[2].result }}) AND
+          {{ rule.inputs[3].name }} ({{ rule.inputs[3].result }}) =>
+          {{ rule.output.name }} ({{ rule.result }})
+        </p>
+      </div>
+      <div v-else>
+        <h3>Правила:</h3>
+        <p v-for="(rule, index) in rules" :key="index">
+          {{ index }}: {{ rule.inputs[0].name }} AND
+          {{ rule.inputs[1].name }} AND {{ rule.inputs[2].name }} AND
+          {{ rule.inputs[3].name }} =>
+          {{ rule.output.name }}
+        </p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -88,15 +111,16 @@ export default {
   name: "Home",
 
   /**
-   * config из файла выше
-   * в result записывается объект с результатом
-   * isSuccess показывает результат, когда он подсчитан
-   * isFirst тоже для этого
+   * Здесь перечисляются переменные, которые используются "глобально"
+   * для этого файла.
    */
   data() {
     return {
       ...config,
-      result: "",
+      result: {},
+      rulesResult: [],
+      indexResult: -1,
+      variablesResult: [],
       isSuccess: false,
       isFirst: true
     };
@@ -106,86 +130,60 @@ export default {
     getResult() {
       try {
         /**
-         * Агрегирование
+         * Дефаззификация.
+         * Для каждого правила посчитать его "результат", а потом
+         * среди всех постепенно выбрать максимальный (метод последнего
+         * максимума)
          */
+        let res = { result: 0 };
+        let k = false;
 
-        let accumulation = [[], [], [], [], [], []];
-
-        this.rules.forEach(rule => {
-          if (rule.output.name == "Это не похоже на стол") {
-            accumulation[0].push(this.checkValue(rule));
-          }
-          if (
-            rule.output.name == "Лучше не садиться, но если очень хочется..."
-          ) {
-            accumulation[1].push(this.checkValue(rule));
-          }
-          if (rule.output.name == "Для аккуратного ребенка") {
-            accumulation[2].push(this.checkValue(rule));
-          }
-          if (rule.output.name == "Для подростка") {
-            accumulation[3].push(this.checkValue(rule));
-          }
-          if (rule.output.name == "Для взрослого") {
-            accumulation[4].push(this.checkValue(rule));
-          }
-          if (rule.output.name == "Для компании друзей") {
-            accumulation[5].push(this.checkValue(rule));
+        this.rules.forEach((rule, index) => {
+          rule.result = this.checkValue(rule, index);
+          this.rules[index].result = rule.result;
+          if (rule.result > res.result) {
+            res = rule;
+            // если вдруг правило не найдено, то останется false
+            k = true;
+            // для отображения жирным найденного правила
+            this.indexResult = index;
           }
         });
 
-        console.log();
+        /**
+         * Настроечный код, для правильного отображения данных
+         */
+        this.rulesResult = this.rules;
+        for (let key = 0; key < 4; key += 1) {
+          this.variables.inputs[key].fuzzyAreas.forEach(val => {
+            const value = this.variables.inputs[key].value;
+            if (
+              value >= val.ranges[0] &&
+              value <= val.ranges[val.ranges.length - 1]
+            ) {
+              this.variables.inputs[key].res = val;
+            }
+          });
+        }
+        this.variablesResult = this.variables;
 
         /**
-         * Аккумулирование.
-         * Для нашей выходной переменной необходимо определить
-         * результирующую функцию принадлежности. Для этого
-         * нужно объединить все функции принадлежности этой
-         * выходной переменной.
+         * Если нужного правила нет, выводим средний результат
          */
+        if (!k) {
+          this.result = {
+            output: this.variables.outputs[0].fuzzyAreas[3]
+          };
+          this.result.result = 50;
+          this.indexResult = -1;
+        } else {
+          this.result = res;
+        }
 
-        /**
-         * Заменяем массив из степеней истинности правил для i-го
-         * значения выходной переменной на максимальную (max-объединение)
-         * степень истинности из этого массива.
-         */
-        accumulation[0] = accumulation[0].reduce((next, prev) =>
-          Math.max(next, prev)
-        );
-        accumulation[1] = accumulation[1].reduce((next, prev) =>
-          Math.max(next, prev)
-        );
-        accumulation[2] = accumulation[2].reduce((next, prev) =>
-          Math.max(next, prev)
-        );
-        accumulation[3] = accumulation[3].reduce((next, prev) =>
-          Math.max(next, prev)
-        );
-        accumulation[4] = accumulation[4].reduce((next, prev) =>
-          Math.max(next, prev)
-        );
-        accumulation[5] = accumulation[5].reduce((next, prev) =>
-          Math.max(next, prev)
-        );
-
-        console.log(accumulation);
-
-        // let res = { result: 0 };
-        // /**
-        //  * Для каждого правила посчитать его "результат", а потом
-        //  * среди всех постепенно выбрать максимальный
-        //  */
-        // this.rules.forEach(rule => {
-        //   rule.result = this.checkValue(rule);
-        //   console.log(rule.result);
-        //   if (rule.result > res.result) {
-        //     res = rule;
-        //   }
-        // });
-        // this.result = res;
-        // this.isFirst = true;
-        // this.isSuccess = true;
-      } catch {
+        this.isFirst = true;
+        this.isSuccess = true;
+      } catch (e) {
+        console.log(e);
         this.isSuccess = false;
       }
     },
@@ -199,12 +197,15 @@ export default {
      * входных переменных 4), а потом находим среди этого минимум (ибо
      * через AND). Это степень истинности правила.
      */
-    checkValue(rule) {
+    checkValue(rule, indexRule) {
       const data = [];
 
       rule.inputs.forEach((input, index) => {
-        const value = this.variables.inputs[index].value;
-        data.push(this.fuzzyValue(input.ranges, value));
+        let value = this.variables.inputs[index].value;
+        value = this.fuzzyValue(input.ranges, value);
+        this.rules[indexRule].inputs[index].result = value;
+        this.variables.inputs[index].result = value;
+        data.push(value);
       });
 
       const result = data.reduce((next, prev) => Math.min(next, prev));
